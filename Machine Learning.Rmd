@@ -1,0 +1,116 @@
+---
+title: "Machine Learning Project"
+author: "EMW"
+date: "Saturday, April 25, 2015"
+output: html_document
+---
+**Introduction (Paraphrased from Assignment)**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+The goal of the project is to predict the manner in which they did the exercise.  
+
+**Data Prep**
+
+Before working with the data, we'll clean up the source files to make the data more manageable and remove entries without numerical values.
+
+```
+#Identifying non-numerical data
+training <-read.csv('./data/pml-training.csv', na.strings=c("NA","#DIV/0!", ""))
+testing <-read.csv('./data/pml-testing.csv', na.strings=c("NA", "#DIV/0!", ""))
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+
+#Removing columns that were not applicable
+training <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+```
+
+**Using a Random Forest Model**
+
+I chose to create a Random Forest model as this approach tends to be a top performing algorithm in prediction contests.  As you'll see below, it provided a very high accuracy in the test case.  Had this not occurred, a combination of other predictors (e.g. boosting, decision trees) would have been explored to increase the predictive value of the model.
+
+```
+#Model
+RFmodel <- randomForest(classe ~ ., data=subTraining, method="class")
+
+#Prediction
+RFpredict <- predict(RFmodel, subTesting, type = "class")
+```
+
+**Estimated Error via Cross-Validation**
+
+Cross-validation will be performed by splitting the training data in training (75%) and testing (25%) data.
+
+```
+TSets <- createDataPartition(y=training$classe, p=0.75, list=FALSE)
+
+#Training Portion
+TrainingSet <- training[TSets, ] 
+
+#Testing Portion
+TestingSet <- training[-TSets, ]
+
+confusionMatrix(RFpredict, TestingSet$classe)
+```
+
+Output:
+
+```
+Confusion Matrix and Statistics
+
+          Reference
+Prediction    A    B    C    D    E
+         A 1395    6    0    0    0
+         B    0  941    2    0    0
+         C    0    2  851   10    1
+         D    0    0    2  794    2
+         E    0    0    0    0  898
+
+Overall Statistics
+                                          
+               Accuracy : 0.9949          
+                 95% CI : (0.9925, 0.9967)
+    No Information Rate : 0.2845          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9936          
+ Mcnemar's Test P-Value : NA              
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D
+Sensitivity            1.0000   0.9916   0.9953   0.9876
+Specificity            0.9983   0.9995   0.9968   0.9990
+Pos Pred Value         0.9957   0.9979   0.9850   0.9950
+Neg Pred Value         1.0000   0.9980   0.9990   0.9976
+Prevalence             0.2845   0.1935   0.1743   0.1639
+Detection Rate         0.2845   0.1919   0.1735   0.1619
+Detection Prevalence   0.2857   0.1923   0.1762   0.1627
+Balanced Accuracy      0.9991   0.9955   0.9961   0.9933
+                     Class: E
+Sensitivity            0.9967
+Specificity            1.0000
+Pos Pred Value         1.0000
+Neg Pred Value         0.9993
+Prevalence             0.1837
+Detection Rate         0.1831
+Detection Prevalence   0.1831
+Balanced Accuracy      0.9983
+```
+As the results show, the accuracy for the Random Forest model was 0.9949 which implies an expected out-of-sample error of 0.0051.
+
+**Generating Predictions**
+
+From this model, we can then generate predictions for the 20 test cases: 
+
+```
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("./data/submission/problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictSubmission)
+```
